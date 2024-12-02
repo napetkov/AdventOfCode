@@ -2,6 +2,8 @@ package org.example;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello world!");
+        Day2 day2 = new Day2();
+        day2.run();
+
     }
 }

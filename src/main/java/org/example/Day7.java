@@ -1,73 +1,136 @@
 package org.example;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Day7 implements Runnable {
     @Override
     public void run() {
+        List<String> inputLines = new ArrayList<>();
         try {
-            long totalResult = 0;
-            List<String> lines = Files.readAllLines(Paths.get("C:\\Users\\Lenovo\\OneDrive\\Desktop\\Advent_of_code\\day_7\\day_7_input.txt"));
-            for (String line : lines) {
-                Long target = Long.parseLong(line.split(": ")[0]);
-                List<Long> numbers = Arrays.stream(line.split(": ")[1].split("\\s+")).map(Long::parseLong).toList();
-
-                if (hasMatchingCombination(numbers, target)) {
-                    totalResult += target;
-                }else {
-                    if(isTargetAchievableWithAllOperators(numbers,1,numbers.get(0),numbers.get(0),target)){
-                        totalResult += target;
-                    }
-                }
-            }
-
-
-            System.out.println(totalResult);
+            inputLines = Files.readAllLines(Paths.get("C:\\Users\\Lenovo\\OneDrive\\Desktop\\Advent_of_code\\day_7\\Day_7_input.txt"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        List<BigInteger> targets = new ArrayList<>();
+        List<List<BigInteger>> sequences = new ArrayList<>();
+        parseInput(inputLines, targets, sequences);
+
+        BigInteger task1Result = processTask1(targets, sequences);
+        System.out.println("Task 1: Sum of achievable targets using + and *: " + task1Result);
+
+        BigInteger task2Result = processTask2(targets, sequences);
+        System.out.println("Task 2: Sum of achievable targets using +, *, and ||: " + task2Result);
+
+        System.out.println(task1Result.add(task2Result));
     }
 
-    private boolean hasMatchingCombination(List<Long> numbers, Long target) {
-        return checkCombinations(numbers, 1, numbers.get(0), target);
-    }
-
-    private static boolean checkCombinations(List<Long> numbers, int index, long currentResult, Long target) {
-        // Base case: if all numbers are processed, check if the result matches the target
-        if (index == numbers.size()) {
-            return currentResult == target;
+    private static void parseInput(List<String> inputLines, List<BigInteger> targets, List<List<BigInteger>> sequences) {
+        for (String line : inputLines) {
+            String[] parts = line.split(":");
+            BigInteger target = new BigInteger(parts[0].trim());
+            List<BigInteger> sequence = new ArrayList<>();
+            for (String num : parts[1].trim().split(" ")) {
+                sequence.add(new BigInteger(num));
+            }
+            targets.add(target);
+            sequences.add(sequence);
         }
-        return checkCombinations(numbers, index + 1, currentResult + numbers.get(index), target) ||
-                checkCombinations(numbers, index + 1, currentResult * numbers.get(index), target);
     }
-    // Check if the target can be achieved using +, *, and ||
-    private static boolean isTargetAchievableWithAllOperators(List<Long> sequence, int index, long currentResult, long lastNumber, long target) {
+
+    private static BigInteger processTask1(List<BigInteger> targets, List<List<BigInteger>> sequences) {
+        BigInteger sum = BigInteger.ZERO;
+        for (int i = 0; i < targets.size(); i++) {
+            BigInteger target = targets.get(i);
+            List<BigInteger> sequence = sequences.get(i);
+
+            if (isTargetAchievableWithPlusAndMultiply(sequence, 1, sequence.get(0), target)) {
+                sum = sum.add(target);
+            }
+        }
+        return sum;
+    }
+
+    private static BigInteger processTask2(List<BigInteger> targets, List<List<BigInteger>> sequences) {
+        BigInteger sum = BigInteger.ZERO;
+        for (int i = 0; i < targets.size(); i++) {
+            BigInteger target = targets.get(i);
+            List<BigInteger> sequence = sequences.get(i);
+
+            if (!isTargetAchievableWithPlusAndMultiply(sequence, 1, sequence.get(0), target)) {
+                if (isTargetAchievableWithAllOperators(sequence, 1, sequence.get(0), sequence.get(0), target)) {
+                    sum = sum.add(target);
+                }
+            }
+        }
+        return sum;
+    }
+
+    private static boolean isTargetAchievableWithPlusAndMultiply(
+            List<BigInteger> sequence, int index, BigInteger currentResult, BigInteger target) {
         if (index == sequence.size()) {
-            return currentResult == target;
+            return currentResult.equals(target);
         }
 
-        long nextNumber = sequence.get(index);
+        BigInteger nextNumber = sequence.get(index);
 
-        // Try addition
-        if (isTargetAchievableWithAllOperators(sequence, index + 1, currentResult + nextNumber, nextNumber, target)) {
+        // addition
+        if (isTargetAchievableWithPlusAndMultiply(sequence, index + 1, currentResult.add(nextNumber), target)) {
             return true;
         }
 
-        // Try multiplication
-        if (isTargetAchievableWithAllOperators(sequence, index + 1, currentResult - lastNumber + (lastNumber * nextNumber), lastNumber * nextNumber, target)) {
-            return true;
-        }
-
-        // Try concatenation
-        long concatenatedNumber = Long.parseLong(lastNumber + "" + nextNumber);
-        if (isTargetAchievableWithAllOperators(sequence, index + 1, currentResult - lastNumber + concatenatedNumber, concatenatedNumber, target)) {
+        // multiplication
+        if (isTargetAchievableWithPlusAndMultiply(sequence, index + 1, currentResult.multiply(nextNumber), target)) {
             return true;
         }
 
         return false;
+    }
+
+    private static boolean isTargetAchievableWithAllOperators(
+            List<BigInteger> sequence, int index, BigInteger currentResult, BigInteger lastNumber, BigInteger target) {
+        if (index == sequence.size()) {
+            return currentResult.equals(target);
+        }
+
+        BigInteger nextNumber = sequence.get(index);
+
+        // addition
+        if (isTargetAchievableWithAllOperators(sequence, index + 1,
+                currentResult.add(nextNumber),
+                nextNumber,
+                target)) {
+            return true;
+        }
+
+        // multiplication
+        if (isTargetAchievableWithAllOperators(sequence, index + 1,
+                currentResult.subtract(lastNumber).add(lastNumber.multiply(nextNumber)),
+                lastNumber.multiply(nextNumber),
+                target)) {
+            return true;
+        }
+
+        // concatenation (||)
+        BigInteger concatenatedNumber = concatenateNumbers(lastNumber, nextNumber);
+        if (isTargetAchievableWithAllOperators(sequence, index + 1,
+                currentResult.subtract(lastNumber).add(concatenatedNumber),
+                concatenatedNumber,
+                target)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static BigInteger concatenateNumbers(BigInteger left, BigInteger right) {
+        // Concatenate two numbers as BigInteger
+        String concatenated = left.toString() + right.toString();
+        return new BigInteger(concatenated);
     }
 }
